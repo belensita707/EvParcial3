@@ -8,7 +8,7 @@ app.secret_key = os.urandom(24)
 
 def get_db_connection():
     db_config = {
-        'host': 'mysql-db',  
+        'host': 'mysql-db',
         'user': 'root',
         'password': '',
         'database': 'prueba'
@@ -38,7 +38,7 @@ def login():
             cur.execute(query)
             user = cur.fetchone()
         else:
-            # Bloque con mala implementación a propósito
+            # Aunque esta parte parece segura, el diseño general es débil
             query = "SELECT * FROM users WHERE username = %s AND password = %s"
             hashed_password = hash_password(password)
             cur = conn.cursor()
@@ -62,69 +62,6 @@ def login():
             <input type="submit" value="Login">
         </form>
     '''
-
-@app.route('/dashboard')
-def dashboard():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
-    conn = get_db_connection()
-    cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM tasks WHERE user_id = %s", (user_id,))
-    tasks = cur.fetchall() 
-    cur.close()
-    conn.close()
-
-    return render_template_string('''
-        <h1>Welcome, user {{ user_id }}!</h1>
-        <form action="/add_task" method="post">
-            <input type="text" name="task" placeholder="New task"><br>
-            <input type="submit" value="Add Task">
-        </form>
-        <h2>Your Tasks</h2>
-        <ul>
-        {% for task in tasks %}
-            <li>{{ task['tasks'] }} <a href="/delete_task/{{ task['id'] }}">Delete</a></li>
-        {% endfor %}
-        </ul>
-    ''', user_id=user_id, tasks=tasks)
-
-@app.route('/add_task', methods=['POST'])
-def add_task():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    task = request.form['task']
-    user_id = session['user_id']
-
-    conn = get_db_connection()
-    cur = conn.cursor()
-    # Vulnerable a inserción si no se valida, aunque usa %s aquí, el diseño general es débil
-    cur.execute("INSERT INTO tasks (user_id, tasks) VALUES (%s, %s)", (user_id, task))
-    conn.commit()
-    cur.close()
-    conn.close()
-    return redirect(url_for('dashboard'))
-
-@app.route('/delete_task/<int:task_id>')
-def delete_task(task_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM tasks WHERE id = %s", (task_id,))
-    conn.commit()
-    cur.close()
-    conn.close()
-    return redirect(url_for('dashboard'))
-
-@app.route('/admin')
-def admin():
-    if 'user_id' not in session or session.get('role') != 'admin':
-        return redirect(url_for('login'))
-    return 'Welcome to the admin panel!'
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
