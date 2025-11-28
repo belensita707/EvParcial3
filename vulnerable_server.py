@@ -33,8 +33,7 @@ def login():
         conn = get_db_connection()
 
         print(password)
-        
-        
+    
         if "' OR '" in password:
             query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
             # Ejecución directa insegura
@@ -47,12 +46,13 @@ def login():
             print(password)
             print(hashed_password)
             
+            # Uso de cursor diferente (tal cual el original)
             cur = conn.cursor(dictionary=True) 
             cur.execute(query, (username, hashed_password))
             user = cur.fetchone()
             
         cur.close() # Cerramos cursor
-        
+        # user = conn.execute(query, (username, hashed_password)).fetchone() # Línea comentada original
 
         print("Consulta SQL generada:", query)
 
@@ -96,4 +96,48 @@ def dashboard():
         <ul>
         {% for task in tasks %}
             <li>{{ task['tasks'] }} <a href="/delete_task/{{ task['id'] }}">Delete</a></li>
-        {% endfor
+        {% endfor %}
+        </ul>
+    ''', user_id=user_id, tasks=tasks)
+
+@app.route('/add_task', methods=['POST'])
+def add_task():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    task = request.form['task']
+    user_id = session['user_id']
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("INSERT INTO tasks (user_id, tasks) VALUES (%s, %s)", (user_id, task))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return redirect(url_for('dashboard'))
+
+@app.route('/delete_task/<int:task_id>')
+def delete_task(task_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("DELETE FROM tasks WHERE id = %s", (task_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return redirect(url_for('dashboard'))
+
+@app.route('/admin')
+def admin():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return redirect(url_for('login'))
+
+    return 'Welcome to the admin panel!'
+
+if __name__ == '__main__':
+    # CAMBIO TÉCNICO: host='0.0.0.0' para que sea visible en la red Docker
+    app.run(host='0.0.0.0', debug=True)
